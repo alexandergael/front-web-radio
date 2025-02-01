@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .max-container {
+    @apply mx-auto max-w-[1440px];
+  }
+
+  .padding-container {
+    @apply px-6 lg:px-20 2xl:px-0;
+  }
+
+  .padding-container1 {
+    @apply px-6 lg:px-8 2xl:px-0;
+  }
+
+  .flexCenter {
+    @apply flex items-center justify-center;
+  }
+
+  .flexBetween {
+    @apply flex items-center justify-between;
+  }
+
+  .flexStart {
+    @apply flex items-center justify-start;
+  }
+
+  .flexEnd {
+    @apply flex items-center justify-end;
+  }
+  /* hide scrollbar for chrome, safari and opera */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar::-webkit-scrollbar {
+    display: initial;
+  }
+
+  /* hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: #b7b7b7;
+  }
+
+  /* Pour éviter les effets de sélection pendant le drag */
+  [draggable="true"] {
+    user-select: none;
+    -webkit-user-drag: element;
+  }
+
+  /* Style pendant le drag */
+  .dragging {
+    transform: rotate(2deg);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  .draggable-item {
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+
+  .draggable-item.dragging {
+    opacity: 0.5;
+    transform: scale(0.98);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .playlist-dropzone {
+    transition: all 0.3s ease;
+  }
+}
