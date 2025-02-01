@@ -162,33 +162,33 @@ export default function Home() {
     }
   };
 
-  const handleDeletePlaylist = async (id: number) => {
-    try {
-      const formData = new FormData();
-      formData.append("id", id.toString());
+  // const handleDeletePlaylist = async (id: number) => {
+  //   try {
+  //     const formData = new FormData();
+  //     formData.append("id", id.toString());
 
-      const response = await deletePlaylist(formData);
-      if (
-        (response as { success: boolean; error?: { message: string } }).success
-      ) {
-        setPlaylists(playlists.filter((p) => p.id !== id));
-      } else {
-        throw new Error(
-          (response as { error?: { message: string } }).error?.message ||
-            "Une erreur s'est produite lors de la suppression."
-        );
-      }
-    } catch (error) {
-      console.error(error);
-      setError("Une erreur s'est produite lors de la suppression.");
-    }
-  };
+  //     const response = await deletePlaylist(formData);
+  //     if (
+  //       (response as { success: boolean; error?: { message: string } }).success
+  //     ) {
+  //       setPlaylists(playlists.filter((p) => p.id !== id));
+  //     } else {
+  //       throw new Error(
+  //         (response as { error?: { message: string } }).error?.message ||
+  //           "Une erreur s'est produite lors de la suppression."
+  //       );
+  //     }
+  //   } catch (error) {
+  //     console.error(error);
+  //     setError("Une erreur s'est produite lors de la suppression.");
+  //   }
+  // };
 
-  const handleEditPlaylist = (playlist: Playlist) => {
-    setIsEditing(playlist.id);
-    setSelectedColor(playlist.color);
-    setPochetteUrl(playlist.pochetteUrl);
-  };
+  // const handleEditPlaylist = (playlist: Playlist) => {
+  //   setIsEditing(playlist.id);
+  //   setSelectedColor(playlist.color);
+  //   setPochetteUrl(playlist.pochetteUrl);
+  // };
 
   const initialValues = {
     name: "",
