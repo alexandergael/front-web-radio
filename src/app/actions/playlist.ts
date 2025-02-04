@@ -16,7 +16,15 @@ export async function getPlaylists(): Promise<
   { playlists: Playlist[] } | { error: unknown; message: string }
 > {
   try {
-    const playlists = await prisma.playlist.findMany();
+    const playlists = await prisma.playlist.findMany({
+      include: {
+        songs: {
+          include: {
+            song: true,
+          },
+        },
+      },
+    });
     return { playlists };
   } catch (error: unknown) {
     return { error, message: "Failed to fetch playlists" };
@@ -80,7 +88,7 @@ export async function deletePlaylist(
   }
 }
 
-export async function uploadImage(
+export async function uploadFile(
   formData: FormData
 ): Promise<{ url: string } | { error: unknown; message: string }> {
   try {
@@ -90,10 +98,26 @@ export async function uploadImage(
       return { error: "No file provided", message: "No file provided" };
     }
 
+    // Vérifier le type de fichier
+    const isImage = file.type.startsWith("image/");
+    const isAudio = file.type.startsWith("audio/");
+
+    if (!isImage && !isAudio) {
+      return {
+        error: "Invalid file type",
+        message: "Only image and audio files are allowed",
+      };
+    }
+
     const buffer = await file.arrayBuffer();
     const bytes = Buffer.from(buffer);
     const filename = Date.now() + "-" + file.name;
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
+    const uploadDir = path.join(
+      process.cwd(),
+      "public",
+      "uploads",
+      isAudio ? "audio" : "images"
+    );
     const filePath = path.join(uploadDir, filename);
 
     try {
@@ -113,7 +137,7 @@ export async function uploadImage(
       return { error: writeError, message: "Failed to write file" };
     }
 
-    const fileUrl = `/uploads/${filename}`;
+    const fileUrl = `/uploads/${isAudio ? "audio" : "images"}/${filename}`;
     return { url: fileUrl };
   } catch (error: unknown) {
     console.error("Error handling upload:", error);

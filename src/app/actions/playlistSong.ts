@@ -1,129 +1,86 @@
-import { NextResponse } from "next/server";
+"use server";
+
+import { revalidatePath } from "next/cache";
 import { prisma } from "../../lib/prisma";
 
-// Function to handle errors
-const handlePrismaError = (error: any) => {
-  console.error("Prisma Error:", error);
-  return NextResponse.json(
-    { error: "Internal Server Error", details: error.message },
-    { status: 500 }
-  );
-};
+interface PlaylistSong {
+  playlistId: number;
+  songId: number;
+}
 
-// Function to handle successful responses
-const handleSuccess = (data: any, status = 200) => {
-  return NextResponse.json(data, { status });
-};
-
-// POST /api/playlist-songs - Add a song to a playlist
-export async function POST(request: Request) {
+export async function createPlaylistSong(
+  formData: FormData
+): Promise<
+  { playlistSong: PlaylistSong } | { error: unknown; message: string }
+> {
   try {
-    const { playlistId, songId } = await request.json();
+    const playlistId = parseInt(formData.get("playlistId") as string);
+    const songId = parseInt(formData.get("songId") as string);
 
-    if (!playlistId || !songId) {
-      return NextResponse.json(
-        { error: "Missing playlistId or songId" },
-        { status: 400 }
-      );
-    }
-
-    const playlist = await prisma.playlist.findUnique({
-      where: { id: playlistId },
+    const playlistSong = await prisma.playlistSong.create({
+      data: { playlistId, songId },
     });
 
-    if (!playlist) {
-      return NextResponse.json(
-        { error: "Playlist not found" },
-        { status: 404 }
-      );
-    }
-
-    const song = await prisma.song.findUnique({
-      where: { id: songId },
-    });
-
-    if (!song) {
-      return NextResponse.json({ error: "Song not found" }, { status: 404 });
-    }
-
-    // Update the song to associate it with the playlist
-
-    return handleSuccess({
-      message: "Song added to playlist successfully",
-    });
-  } catch (error: any) {
-    return handlePrismaError(error);
+    revalidatePath("/");
+    return { playlistSong };
+  } catch (error: unknown) {
+    return { error, message: "Failed to create playlist-song association" };
   }
 }
 
-// GET /api/playlist-songs?playlistId= - Get all songs in a playlist
-export async function GET(request: Request) {
+export async function getPlaylistSongs(
+  playlistId: number
+): Promise<
+  { playlistSongs: PlaylistSong[] } | { error: unknown; message: string }
+> {
   try {
-    const searchParams = new URL(request.url).searchParams;
-    const playlistId = searchParams.get("playlistId");
-
-    if (!playlistId) {
-      return NextResponse.json(
-        { error: "Missing playlistId" },
-        { status: 400 }
-      );
-    }
-
-    const playlist = await prisma.playlist.findUnique({
-      where: { id: parseInt(playlistId) },
-      include: { songs: true },
+    const playlistSongs = await prisma.playlistSong.findMany({
+      where: { playlistId },
     });
-
-    if (!playlist) {
-      return NextResponse.json(
-        { error: "Playlist not found" },
-        { status: 404 }
-      );
-    }
-
-    return handleSuccess({ songs: playlist.songs });
-  } catch (error: any) {
-    return handlePrismaError(error);
+    return { playlistSongs };
+  } catch (error: unknown) {
+    return { error, message: "Failed to fetch playlist songs" };
   }
 }
 
-// DELETE /api/playlist-songs?playlistId=&songId= - Remove a song from a playlist
-export async function DELETE(request: Request) {
+export async function getAllPlalistSongs(): Promise<
+  { playlistSongs: PlaylistSong[] } | { error: unknown; message: string }
+> {
   try {
-    const searchParams = new URL(request.url).searchParams;
-    const playlistId = searchParams.get("playlistId");
-    const songId = searchParams.get("songId");
+    const playlistSongs = await prisma.playlistSong.findMany({
+      include: {
+        playlist: {
+          include: {
+            songs: true,
+          },
+        },
+      },
+    });
+    return { playlistSongs };
+  } catch (error: unknown) {
+    return { error, message: "Failed to fetch all playlist songs" };
+  }
+}
 
-    if (!playlistId || !songId) {
-      return NextResponse.json(
-        { error: "Missing playlistId or songId" },
-        { status: 400 }
-      );
-    }
+export async function deletePlaylistSong(
+  formData: FormData
+): Promise<{ success: boolean } | { error: unknown; message: string }> {
+  try {
+    const playlistId = parseInt(formData.get("playlistId") as string);
+    const songId = parseInt(formData.get("songId") as string);
 
-    const playlist = await prisma.playlist.findUnique({
-      where: { id: parseInt(playlistId) },
+    await prisma.playlistSong.delete({
+      where: {
+        playlistId_songId: {
+          playlistId,
+          songId,
+        },
+      },
     });
 
-    if (!playlist) {
-      return NextResponse.json(
-        { error: "Playlist not found" },
-        { status: 404 }
-      );
-    }
-
-    const song = await prisma.song.findUnique({
-      where: { id: parseInt(songId) },
-    });
-
-    if (!song) {
-      return NextResponse.json({ error: "Song not found" }, { status: 404 });
-    }
-
-    return handleSuccess({
-      message: "Song removed from playlist successfully",
-    });
-  } catch (error: any) {
-    return handlePrismaError(error);
+    revalidatePath("/");
+    return { success: true };
+  } catch (error: unknown) {
+    return { error, message: "Failed to delete playlist-song association" };
   }
 }

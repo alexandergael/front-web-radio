@@ -16,7 +16,7 @@ import AddTwoToneIcon from "@mui/icons-material/AddTwoTone";
 import SearchIcon from "@mui/icons-material/Search";
 import { ChangeEvent, useState } from "react";
 import PlayCircleIcon from "@mui/icons-material/PlayCircle";
-import { ArrowForward, Cancel } from "@mui/icons-material";
+import { ArrowForward, Cancel, PauseCircle } from "@mui/icons-material";
 import Drawer from "@mui/material/Drawer";
 import * as React from "react";
 import PieChartWithCenterLabel from "../components/chart/chart";
@@ -30,17 +30,27 @@ import {
   deletePlaylist,
   getPlaylists,
   updatePlaylist,
-  uploadImage,
+  uploadFile,
 } from "./actions/playlist";
 import PlaylistForm from "../components/playlist/PlaylistForm";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { createSong } from "./actions/song";
+import { createPlaylistSong } from "./actions/playlistSong";
+
 export interface Playlist {
   id: number;
   name: string;
   color: string;
   pochetteUrl: string | null;
+  songs?: Songs[];
 }
+
+type Songs = {
+  playlistId: number;
+  songId: number;
+  song: Song;
+};
 
 export default function Home() {
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -55,8 +65,13 @@ export default function Home() {
   const handleDropInPlaylist = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     const index = parseInt(e.dataTransfer.getData("text/plain"));
-    const draggedSong = songsList[index];
-    setPlaylistSongs([...playlistSongs, draggedSong]);
+    // const draggedSongBiblio = songsList[index];
+    const draggedSongMesFichiers = songsListMesFichier[index];
+    setPlaylistSongs([
+      ...playlistSongs,
+      // draggedSongBiblio,
+      draggedSongMesFichiers,
+    ]);
     setIsDraggingOverPlaylist(false);
   };
 
@@ -79,20 +94,24 @@ export default function Home() {
   const [isEditing, setIsEditing] = useState<number | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  React.useEffect(() => {
-    const fetchPlaylists = async () => {
-      try {
-        const response = await getPlaylists();
-        if ("playlists" in response) {
-          setPlaylists(response.playlists);
-        } else {
-          throw new Error(response.message);
-        }
-      } catch (error) {
-        console.error(error);
-        setError("Une erreur s'est produite lors du chargement des playlists.");
+  // React.useEffect(() => {
+  const fetchPlaylists = async () => {
+    try {
+      const response = await getPlaylists();
+      if ("playlists" in response) {
+        setPlaylists(response.playlists);
+      } else {
+        throw new Error(response.message);
       }
-    };
+    } catch (error) {
+      console.error(error);
+      setError("Une erreur s'est produite lors du chargement des playlists.");
+    }
+  };
+  //   fetchPlaylists();
+  // }, []);
+
+  React.useEffect(() => {
     fetchPlaylists();
   }, []);
 
@@ -109,86 +128,140 @@ export default function Home() {
     formikHelpers: FormikHelpers<any>
   ) => {
     try {
+      // 1. Upload playlist cover image if selected
       let imageUrl = pochetteUrl;
       if (selectedFile) {
-        const formData = new FormData();
-        formData.append("file", selectedFile);
-        const response = await uploadImage(formData);
+        const imageFormData = new FormData();
+        imageFormData.append("file", selectedFile);
+        const response = await uploadFile(imageFormData);
         if ("url" in response) {
           imageUrl = response.url;
         } else {
-          console.error("Upload failed:", response.message);
+          console.error("Cover upload failed:", response.message);
           return;
         }
       }
 
-      const formData = new FormData();
-      formData.append("name", values.name);
-      formData.append("color", selectedColor || "");
-      formData.append("pochetteUrl", imageUrl || "");
+      // 2. Create or update the playlist
+      const playlistFormData = new FormData();
+      playlistFormData.append("name", values.name);
+      playlistFormData.append("color", selectedColor || "");
+      playlistFormData.append("pochetteUrl", imageUrl || "");
 
-      let response;
+      let playlistResponse;
       if (isEditing) {
-        formData.append("id", isEditing.toString());
-        response = await updatePlaylist(formData);
+        playlistFormData.append("id", isEditing.toString());
+        playlistResponse = await updatePlaylist(playlistFormData);
       } else {
-        response = await createPlaylist(formData);
+        playlistResponse = await createPlaylist(playlistFormData);
       }
 
-      if ("playlist" in response) {
+      // 3. Handle songs if playlist creation/update was successful
+      if ("playlist" in playlistResponse) {
+        const playlistId = playlistResponse.playlist.id;
+
+        // Upload and create each song
+        for (const song of playlistSongs) {
+          // Upload audio file
+          if (song.file) {
+            const audioFormData = new FormData();
+            audioFormData.append("file", song.file);
+            const audioUploadResponse = await uploadFile(audioFormData);
+
+            if ("url" in audioUploadResponse) {
+              // Create song record
+              const songFormData = new FormData();
+              songFormData.append("title", song.title);
+              songFormData.append("artist", song.artist);
+              songFormData.append("songUrl", audioUploadResponse.url);
+              songFormData.append("duration", song.duration);
+              songFormData.append("playlistId", playlistId.toString());
+
+              const songResponse = await createSong(songFormData);
+
+              console.log("songResponse : ", songResponse);
+
+              // Associate song with playlist using the new server action
+              if ("song" in songResponse) {
+                if (songResponse?.song) {
+                  const playlistSongFormData = new FormData();
+                  playlistSongFormData.append(
+                    "playlistId",
+                    playlistId.toString()
+                  );
+                  playlistSongFormData.append(
+                    "songId",
+                    songResponse.song.id.toString()
+                  );
+                  const playlistSongResponse = await createPlaylistSong(
+                    playlistSongFormData
+                  );
+                  console.log("playlistSongResponse : ", playlistSongResponse);
+                }
+              }
+            }
+          }
+        }
+
+        // Update UI state
         if (isEditing) {
           setPlaylists(
-            playlists.map((p) => (p.id === isEditing ? response.playlist : p))
+            playlists.map((p) =>
+              p.id === isEditing ? playlistResponse.playlist : p
+            )
           );
           toast.success("Playlist mise à jour avec succès!");
         } else {
-          setPlaylists([...playlists, response.playlist]);
+          setPlaylists([...playlists, playlistResponse.playlist]);
           toast.success("Playlist créée avec succès!");
         }
+
+        // Reset form state
         setIsEditing(null);
         setPochetteUrl(null);
         setSelectedFile(null);
+        setPlaylistSongs([]);
         formikHelpers.resetForm();
-      } else {
-        throw new Error(response.message);
       }
     } catch (error) {
       console.error(error);
-      setError(
-        `Une erreur s'est produite lors de ${
+      toast.error(
+        `Erreur lors de ${
           isEditing ? "la mise à jour" : "la création"
         } de la playlist.`
       );
+    } finally {
+      fetchPlaylists();
     }
   };
 
-  // const handleDeletePlaylist = async (id: number) => {
-  //   try {
-  //     const formData = new FormData();
-  //     formData.append("id", id.toString());
+  const handleDeletePlaylist = async (id: number) => {
+    try {
+      const formData = new FormData();
+      formData.append("id", id.toString());
 
-  //     const response = await deletePlaylist(formData);
-  //     if (
-  //       (response as { success: boolean; error?: { message: string } }).success
-  //     ) {
-  //       setPlaylists(playlists.filter((p) => p.id !== id));
-  //     } else {
-  //       throw new Error(
-  //         (response as { error?: { message: string } }).error?.message ||
-  //           "Une erreur s'est produite lors de la suppression."
-  //       );
-  //     }
-  //   } catch (error) {
-  //     console.error(error);
-  //     setError("Une erreur s'est produite lors de la suppression.");
-  //   }
-  // };
+      const response = await deletePlaylist(formData);
+      if (
+        (response as { success: boolean; error?: { message: string } }).success
+      ) {
+        setPlaylists(playlists.filter((p) => p.id !== id));
+      } else {
+        throw new Error(
+          (response as { error?: { message: string } }).error?.message ||
+            "Une erreur s'est produite lors de la suppression."
+        );
+      }
+    } catch (error) {
+      console.error(error);
+      setError("Une erreur s'est produite lors de la suppression.");
+    }
+  };
 
-  // const handleEditPlaylist = (playlist: Playlist) => {
-  //   setIsEditing(playlist.id);
-  //   setSelectedColor(playlist.color);
-  //   setPochetteUrl(playlist.pochetteUrl);
-  // };
+  const handleEditPlaylist = (playlist: Playlist) => {
+    setIsEditing(playlist.id);
+    setSelectedColor(playlist.color);
+    setPochetteUrl(playlist.pochetteUrl);
+  };
 
   const initialValues = {
     name: "",
@@ -293,6 +366,48 @@ export default function Home() {
     </div>
   );
 
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
+    null
+  );
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [activePlaylistId, setActivePlaylistId] = useState<number | null>(null);
+
+  const handlePlayPlaylist = (playlist: Playlist & { songs: any[] }) => {
+    // If clicking on currently playing playlist, pause it
+    if (activePlaylistId === playlist.id) {
+      currentAudio?.pause();
+      setActivePlaylistId(null);
+      setIsPlaying(false);
+      return;
+    }
+
+    // Stop any currently playing audio
+    if (currentAudio) {
+      currentAudio.pause();
+    }
+
+    // Start new playlist
+    if (playlist.songs && playlist.songs.length > 0) {
+      const audio = new Audio(playlist.songs[0].song.songUrl);
+
+      audio.onended = () => {
+        const currentIndex = playlist.songs.findIndex(
+          (s) => s.song.songUrl === audio.src
+        );
+        if (currentIndex < playlist.songs.length - 1) {
+          const nextSong = playlist.songs[currentIndex + 1];
+          audio.src = nextSong.song.songUrl;
+          audio.play();
+        }
+      };
+
+      audio.play();
+      setCurrentAudio(audio);
+      setActivePlaylistId(playlist.id);
+      setIsPlaying(true);
+    }
+  };
+
   return (
     // <Playlist />
     <>
@@ -346,21 +461,37 @@ export default function Home() {
                   >
                     <div className="flex flex-col gap-8">
                       <div
-                        className="w-[164px] h-[164px] min-h-[164px] min-w-[164px] rounded-full bg-slate-500 flex justify-center items-center relative"
+                        className={`w-[164px] h-[164px] min-h-[164px] min-w-[164px] rounded-full bg-slate-500 flex justify-center items-center relative ${
+                          activePlaylistId === playlist.id
+                            ? "animate-pulse"
+                            : ""
+                        }`}
                         style={{
                           backgroundImage: playlist?.pochetteUrl
-                            ? `url(${playlist.pochetteUrl})`
+                            ? `url(/uploads/images/${playlist.pochetteUrl
+                                .split("/")
+                                .pop()})`
                             : "none",
                           backgroundSize: "cover",
                           backgroundPosition: "center",
                           backgroundRepeat: "no-repeat",
                         }}
                       >
-                        <IconButton className="rounded-full w-16 h-16">
-                          <PlayCircleIcon
-                            color="secondary"
-                            className="w-16 h-16"
-                          />
+                        <IconButton
+                          className="rounded-full w-16 h-16"
+                          onClick={() => handlePlayPlaylist(playlist)}
+                        >
+                          {activePlaylistId === playlist.id ? (
+                            <PauseCircle
+                              color="secondary"
+                              className="w-16 h-16"
+                            />
+                          ) : (
+                            <PlayCircleIcon
+                              color="secondary"
+                              className="w-16 h-16"
+                            />
+                          )}
                         </IconButton>
                         <IconButton className=" absolute top-3 right-1 rounded-full w-7 h-7 bg-white flex items-center justify-center">
                           <SearchIcon color="primary" className="w-4 h-4" />

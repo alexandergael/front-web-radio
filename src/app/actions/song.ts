@@ -18,12 +18,9 @@ export async function createSong(formData: FormData) {
     const artist = formData.get("artist") as string;
     const songUrl = formData.get("songUrl") as string;
     const duration = parseInt(formData.get("duration") as string);
-    const playlistId = formData.get("playlistId")
-      ? parseInt(formData.get("playlistId") as string)
-      : null;
 
     const song = await prisma.song.create({
-      data: { title, artist, songUrl, duration, playlistId },
+      data: { title, artist, songUrl, duration },
     });
 
     revalidatePath("/");
@@ -40,13 +37,10 @@ export async function updateSong(formData: FormData) {
     const artist = formData.get("artist") as string;
     const songUrl = formData.get("songUrl") as string;
     const duration = parseInt(formData.get("duration") as string);
-    const playlistId = formData.get("playlistId")
-      ? parseInt(formData.get("playlistId") as string)
-      : null;
 
     const song = await prisma.song.update({
       where: { id },
-      data: { title, artist, songUrl, duration, playlistId },
+      data: { title, artist, songUrl, duration },
     });
 
     revalidatePath("/");
